@@ -1,0 +1,379 @@
+// Quiroga Joaquin
+
+#include <Servo.h>
+//PARCIAL
+#define FOTODIODO A0
+#define SENSORFUERZA A1
+#define SERVO A2
+
+
+//PULSADORES
+
+#define SUBIR 13
+#define PARAR 12
+#define BAJAR 11
+
+//LEDS
+
+#define LED_ROJO 10
+#define LED_VERDE 9
+
+//PIN DISPLAY
+
+#define A 8
+#define B 7 
+#define C 6 
+#define D 5 
+#define E 4
+#define F 3
+#define G 2
+
+// VARIABLES DE ESTADOS
+int subir;
+int subirSiguiente = 1;
+int parar;
+int pararSiguiente = 1;
+int bajar;
+int bajarSiguiente = 1;
+
+// BANDERAS
+int flagSubiendo = 0;
+int flagBajando = 0;
+int flagParado = 0;
+
+// CONTADORES
+int contadorSubir = 1;
+int contadorBajar = 1;
+int contadorParar = 1;
+
+//PISO
+int piso = 0;
+
+int validacionSubir;
+int validacionParar;
+int validacionBajar;
+//VARIABLES DEL PARCIAL
+int lecturaFotodiodo;
+int lecturaSensorFuerza;
+int grados = 0;
+
+Servo miServo;
+
+
+//LLAMADAS A FUNCIONES
+void encenderSegmentosDeseados(int a,int b,int c,int d,int e, int f,int g,int prender_a,int prender_b,int prender_c,int prender_d,int prender_e,int prender_f,int prender_g);
+
+void setup()
+{
+  //SALIDAS
+  pinMode(LED_ROJO, OUTPUT);
+  pinMode(LED_VERDE, OUTPUT);
+  pinMode(A, OUTPUT);
+  pinMode(B, OUTPUT);
+  pinMode(C, OUTPUT);
+  pinMode(D, OUTPUT);
+  pinMode(E, OUTPUT);
+  pinMode(F, OUTPUT);
+  pinMode(G, OUTPUT);
+  
+
+	  
+  //ENTRADAS
+  pinMode(SUBIR, INPUT_PULLUP);
+  pinMode(PARAR, INPUT_PULLUP);
+  pinMode(BAJAR, INPUT_PULLUP);
+  //########PARCIAL##########
+  pinMode(FOTODIODO, INPUT);
+  pinMode(SENSORFUERZA, INPUT);
+  miServo.attach(SERVO, 500, 2500);
+  
+  Serial.begin(9600);
+}
+
+void loop()
+{
+    
+  contadorSegmento(piso,A,B,C,D,E,F,G);
+  subir = digitalRead(SUBIR);
+  parar = digitalRead(PARAR);
+  bajar = digitalRead(BAJAR);
+  
+  //Parcial
+  lecturaFotodiodo = analogRead(FOTODIODO);
+  lecturaSensorFuerza = analogRead(SENSORFUERZA);
+  //Representa el movimiento del motor del ascensor
+  grados = map(piso,0,9,0,180);
+  miServo.write(grados);
+  
+  Serial.println("Grados:");
+  Serial.println(grados);
+
+
+  
+// PULL DOWN - CADA VEZ QUE PRECIONES LA LECTURA SERA UN LOW
+  if(flagParado == 1 && (flagSubiendo == 1 || flagBajando == 1))
+  {    
+    contadorParar = validarCambioDeEstado(parar,pararSiguiente,contadorParar);
+	pararSiguiente = parar;
+   
+  }
+  else
+  {
+    if(parar == 0)
+    {
+      Serial.println("El ascensor se encuentra detenido.");
+    }
+    
+  }
+
+  if(flagSubiendo == 0 && piso < 9)
+  {
+    contadorSubir = validarCambioDeEstado(subir,subirSiguiente,contadorSubir);
+
+  	subirSiguiente = subir;
+  }
+  else
+  {
+    if(subir == 0)
+    {
+      Serial.println("El ascensor no puede subir por el momento");
+    }
+    
+  }
+  
+  if(flagBajando == 0 && piso > 0)
+  {
+    contadorBajar = validarCambioDeEstado(bajar,bajarSiguiente,contadorBajar);
+
+  	bajarSiguiente = bajar;
+  }
+  else
+  {
+    if(bajar == 0)
+    {
+      Serial.println("El ascensor no puede bajar por el momento");
+      
+    }
+  }
+  
+	//ASCENSOR SUBIENDO
+  validacionSubir = validarContador(contadorSubir);
+  
+  //Si en el ascensor se superan los 1000 kl no subira
+  if(lecturaSensorFuerza < 1000)
+  {
+    if(validacionSubir == 1 && flagBajando == 0)
+    {
+      flagSubiendo = 1;
+      if(piso < 9)
+      {                 
+        piso = subirPiso_bajarPiso(piso,A,B,C,D,E,F,G,1);
+
+        validacionParar = validarContador(contadorParar);
+        if(validacionParar == 1)
+        {
+          contadorParar++;    
+          contadorSubir++;	
+          flagParado = 0;    
+        }
+
+        delay(3000);
+
+      }
+
+      else
+      {
+        flagSubiendo = 0;
+        contadorSubir++;
+      }
+
+    }
+
+    else
+    {
+      flagSubiendo = 0;
+    }
+  }
+  else
+  {
+    Serial.println("Exceso de peso");
+    flagSubiendo = 0;
+  }
+ 
+	//ASCENSOR BAJANDO
+
+
+  validacionBajar = validarContador(contadorBajar);
+  
+  //Si en el ascensor se superan los 1000 kl no subira
+  if(lecturaSensorFuerza < 1000)
+  {
+    if(validacionBajar == 1 && flagSubiendo == 0)
+    {
+      flagBajando = 1;
+
+      if(piso > 0)
+      { 
+
+
+        piso = subirPiso_bajarPiso(piso,A,B,C,D,E,F,G,0);
+        validacionParar = validarContador(contadorParar); 
+
+        if(validacionParar == 1)
+        {	
+          contadorParar++;
+          contadorBajar++;        
+          flagParado = 0; 
+        }
+
+        delay(3000);
+      }
+
+      else
+      {
+        contadorBajar++;
+        flagBajando = 0;
+      }
+
+    }
+
+    else
+    {
+
+      flagBajando = 0;
+    }
+  }
+  else
+  {
+    Serial.println("Exceso de peso");
+    flagBajando = 0;
+
+  }
+    
+
+  //Solo si es de noche se prenderan los leds.
+  if(lecturaFotodiodo < 100)
+  {
+    if(flagSubiendo == 0 && flagBajando == 0)
+    {
+     
+      flagParado = 1;
+      apagarLed(LED_VERDE);
+      encenderLed(LED_ROJO);
+    }
+    else
+    {
+      apagarLed(LED_ROJO);
+      encenderLed(LED_VERDE); 
+    }
+  }
+  else
+  {
+    apagarLed(LED_ROJO);
+    apagarLed(LED_VERDE);
+  }
+}
+
+//################ FUNCIONES ################
+int validarContador(int contador)
+{
+  if(contador % 2 == 0)
+  {
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
+}
+ 
+int validarCambioDeEstado(int estado, int siguienteEstado, int contadorDeCambio)
+{
+  if (estado != siguienteEstado && estado == LOW)
+  {
+    contadorDeCambio += 1;
+  }
+  
+  return contadorDeCambio;
+}
+
+	//DISPLAY DE 7 SEGMENTOS
+
+int subirPiso_bajarPiso(int piso,int a, int b,int c,int d,int e,int f,int g,int subir_bajar)
+{
+  if(subir_bajar == 1)
+  {
+    piso++;
+  }
+  else
+  {
+    piso--;
+  }
+  
+  contadorSegmento(piso,A,B,C,D,E,F,G);
+  Serial.print("Piso:");
+  Serial.println(piso);
+  
+  return piso;
+}
+
+void contadorSegmento(int numero,int a,int b,int c,int d,int e,int f,int g)
+{
+  switch(numero)
+  {
+    case 0:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1,1,1,1,1,0,1);
+   	  break;
+    case 1:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,0,1,1,0,0,0,0);
+   	  break;
+    case 2:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 1, 0, 1, 1, 1, 0);
+      break;
+    case 3:
+   	 	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 1, 1, 1, 0, 1, 0);
+      break;
+    case 4:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,0, 1, 1, 0, 0, 1, 1);
+      break;
+    case 5:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 0, 1, 1, 0, 1, 1);
+      break;
+    case 6:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 0, 1, 1, 1, 1, 1);
+      break;
+    case 7:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 1, 1, 0, 0, 0, 0);
+      break;
+    case 8:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 1, 1, 1, 1, 1, 1);
+      break;
+    case 9:
+    	encenderSegmentosDeseados(a,b,c,d,e,f,g,1, 1, 1, 1, 0, 1, 1);
+      break;
+  } 
+
+}
+
+void encenderSegmentosDeseados(int a,int b,int c,int d,int e, int f,int g,int prender_a,int prender_b,int prender_c,int prender_d,int prender_e,int prender_f,int prender_g)
+{ 
+  int arrayLed[] = {a,b,c,d,e,f,g};
+  int arrayEstadoLed[] = {prender_a,prender_b,prender_c,prender_d,prender_e,prender_f,prender_g};
+ 
+  for(int i = 0; i<7;i++)
+  {
+    digitalWrite(arrayLed[i],arrayEstadoLed[i]);
+  }
+  
+}
+
+	//LEDS
+void encenderLed(int led)
+{
+  digitalWrite(led, HIGH);
+}
+
+void apagarLed(int led)
+{
+  digitalWrite(led, LOW);
+}
